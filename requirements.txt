@@ -1,0 +1,8 @@
+# requirements.txt
+streamlit
+google-generativeai
+python-dotenv
+pandas
+plotly  # <-- ADD THIS LINE
+python-docx
+pypdf2

@@ -1,0 +1,9 @@
+# .streamlit/config.toml
+
+[theme]
+# A professional, calming color scheme
+primaryColor="#0068C9"  # A nice BRAC-like blue
+backgroundColor="#F0F2F6" # A light grey background
+secondaryBackgroundColor="#FFFFFF" # White for cards and containers
+textColor="#262730" # A dark grey for text, easier on the eyes than pure black
+font="sans serif"
