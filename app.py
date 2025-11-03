@@ -5,7 +5,7 @@ from auth import login_form
 from views.admin_view import admin_dashboard
 from views.pc_view import pc_dashboard
 
-st.set_page_config(page_title="BRAC AI গাইড", layout="wide")
+st.set_page_config(page_title="BRAC IED PARA-COUNSELLOR AI GUIDE", layout="wide")
 
 setup_database()
 

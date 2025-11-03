@@ -20,7 +20,7 @@ def verify_user(username, password):
 
 def login_form():
     """Displays the login form and handles authentication."""
-    st.header("BRAC AI গাইড - লগইন")
+    st.header("BRAC IED PARA-COUNSELLOR AI GUIDE - লগইন")
     with st.form("login_form"):
         username = st.text_input("ইউজারনেম")
         password = st.text_input("পাসওয়ার্ড", type="password")
