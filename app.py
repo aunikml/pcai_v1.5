@@ -18,7 +18,7 @@ if not st.session_state.logged_in:
 else:
     with st.sidebar:
         st.subheader(f"স্বাগতম, {st.session_state.full_name}")
-        role_display = "অ্যাডমিন" if st.session_state.role == 'admin' else "প্যারাক কাউন্সেলর"
+        role_display = "অ্যাডমিন" if st.session_state.role == 'admin' else "প্যারা কাউন্সেলর"
         st.write(f"ভূমিকা: {role_display}")
         if st.button("লগআউট"):
             for key in list(st.session_state.keys()): del st.session_state[key]

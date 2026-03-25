@@ -23,14 +23,25 @@ def format_referral_status(status):
 def show_view_client_page():
     st.header("Client Profile")
     client_id = st.session_state.view_client_id
-    client = next((c for c in get_all_clients() if c['id'] == client_id), None)
-    if not client: st.error("Client not found."); st.rerun(); return
+    all_clients = get_all_clients()
+    client_row = next((c for c in all_clients if c['id'] == client_id), None)
+    
+    if not client_row: 
+        st.error("Client not found.")
+        if st.button("⬅️ Back to Client List"):
+             st.session_state.admin_view = 'list'
+             if 'view_client_id' in st.session_state:
+                del st.session_state.view_client_id
+             st.rerun()
+        return
 
+    client = dict(client_row)
     keys = client.keys()
     acceptance = client['client_acceptance_status'] if 'client_acceptance_status' in keys else "N/A"
     referral = client['supervisor_referral'] if 'supervisor_referral' in keys else "N/A"
     
     st.subheader(f"Name: {client['name']}")
+    st.markdown(f"**Assigned Para-counselor:** {client.get('pc_name', 'N/A')}")
     st.markdown(f"**Client Acceptance Status:** {acceptance}")
     st.metric("Supervisor Referral Required", referral)
     st.divider()
@@ -90,30 +101,41 @@ def show_view_client_page():
         if not sessions:
             st.info("No supervision sessions have been conducted for this client yet.")
         else:
-            for session in sessions:
+            for session_row in sessions:
+                session = dict(session_row)
                 with st.expander(f"**Supervision #{session['session_number']}** - Date: {session['session_date']}"):
                     st.subheader("Para-counselor's Notes")
-                    st.markdown(f"**Case Management:** {session['case_management_notes']}")
-                    st.markdown(f"**Challenges Faced:** {session['challenges_faced']}")
-                    st.markdown(f"**Stuck Points:** {session['stuck_points']}")
-                    st.markdown(f"**PC's Questions:** {session['case_questions']}")
-                    st.markdown(f"**Personal Barriers:** {session['personal_barriers']}")
+                    st.markdown(f"**Case Management:** {session.get('case_management_notes', 'N/A')}")
+                    st.markdown(f"**Challenges Faced:** {session.get('challenges_faced', 'N/A')}")
+                    st.markdown(f"**Stuck Points:** {session.get('stuck_points', 'N/A')}")
+                    st.markdown(f"**PC's Questions:** {session.get('case_questions', 'N/A')}")
+                    st.markdown(f"**Personal Barriers:** {session.get('personal_barriers', 'N/A')}")
                     st.divider()
                     st.subheader("AI Supervision Guidance")
-                    st.markdown(session['ai_supervision_guidance'])
+                    st.markdown(session.get('ai_supervision_guidance', 'N/A'))
 
+    # --- THIS IS THE NEW "BACK" BUTTON ---
     if st.button("⬅️ Back to Client List"):
         st.session_state.admin_view = 'list'
-        del st.session_state.view_client_id
+        if 'view_client_id' in st.session_state:
+            del st.session_state.view_client_id
         st.rerun()
 
 def show_edit_pc_page():
     st.header("Edit Para-counselor")
     pc_id_to_edit = st.session_state.editing_pc_id
-    pc_to_edit = next((p for p in get_all_pcs() if p['id'] == pc_id_to_edit), None)
-    if not pc_to_edit:
-        st.error("Para-counselor not found."); st.rerun()
+    pc_to_edit_row = next((p for p in get_all_pcs() if p['id'] == pc_id_to_edit), None)
+    if not pc_to_edit_row:
+        st.error("Para-counselor not found.")
+        if st.button("⬅️ Back to PC List"):
+            st.session_state.admin_view = 'list'
+            if 'editing_pc_id' in st.session_state:
+                del st.session_state.editing_pc_id
+            st.rerun()
         return
+    
+    pc_to_edit = dict(pc_to_edit_row)
+    
     with st.form("edit_pc_form"):
         st.text_input("Full Name", value=pc_to_edit['full_name'], key="edit_name")
         st.text_input("Phone (Username)", value=pc_to_edit['username'], key="edit_phone")
@@ -123,11 +145,13 @@ def show_edit_pc_page():
             update_pc(pc_id_to_edit, st.session_state.edit_name, st.session_state.edit_phone, st.session_state.edit_district, st.session_state.edit_city)
             st.success("Para-counselor updated successfully.")
             st.session_state.admin_view = 'list'
-            del st.session_state.editing_pc_id
+            if 'editing_pc_id' in st.session_state:
+                del st.session_state.editing_pc_id
             st.rerun()
     if st.button("⬅️ Back to PC List"):
         st.session_state.admin_view = 'list'
-        del st.session_state.editing_pc_id
+        if 'editing_pc_id' in st.session_state:
+            del st.session_state.editing_pc_id
         st.rerun()
 
 def show_admin_main_page():
@@ -140,17 +164,18 @@ def show_admin_main_page():
         if not all_clients:
             st.warning("No client data available to generate insights.")
         else:
-            # --- PURE PYTHON CALCULATIONS (ROBUST METHOD) ---
             total_clients = len(all_clients)
             female_clients, male_clients = 0, 0
             total_referrals, female_referrals, male_referrals = 0, 0, 0
             gender_counts = {'পুরুষ': 0, 'মহিলা': 0, 'অন্যান্য': 0}
             
-            for client in all_clients:
+            for client_row in all_clients:
+                client = dict(client_row) 
+                
                 keys = client.keys()
                 is_referred = 'supervisor_referral' in keys and client['supervisor_referral'] == 'Yes'
                 
-                if 'gender' in keys and client['gender'] in gender_counts:
+                if 'gender' in keys and client.get('gender') in gender_counts:
                     gender = client['gender']
                     gender_counts[gender] += 1
                     
@@ -185,16 +210,22 @@ def show_admin_main_page():
                 if valid_gender_counts:
                     fig1 = px.pie(values=list(valid_gender_counts.values()), names=list(valid_gender_counts.keys()), title="Gender Distribution")
                     st.plotly_chart(fig1, use_container_width=True)
+                else:
+                    st.write("No data for Gender Distribution chart.")
             with c2:
                 female_ref_dist = {'Referred': female_referrals, 'Not Referred': female_clients - female_referrals}
                 if female_clients > 0:
                     fig2 = px.pie(values=list(female_ref_dist.values()), names=list(female_ref_dist.keys()), title="Female Referral Distribution")
                     st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.write("No female clients to display chart.")
             with c3:
                 male_ref_dist = {'Referred': male_referrals, 'Not Referred': male_clients - male_referrals}
                 if male_clients > 0:
                     fig3 = px.pie(values=list(male_ref_dist.values()), names=list(male_ref_dist.keys()), title="Male Referral Distribution")
                     st.plotly_chart(fig3, use_container_width=True)
+                else:
+                    st.write("No male clients to display chart.")
             st.divider()
             
             st.header("Ask About the Data")
@@ -208,7 +239,8 @@ def show_admin_main_page():
                 with st.chat_message("user"): st.markdown(prompt)
                 with st.chat_message("assistant"):
                     with st.spinner("Analyzing data to find insights..."):
-                        df = pd.DataFrame(all_clients) # Create DF just for the chatbot
+                        clients_list_of_dicts = [dict(row) for row in all_clients]
+                        df = pd.DataFrame(clients_list_of_dicts)
                         response = get_admin_data_insights(prompt, df)
                         st.markdown(response)
                 st.session_state.admin_messages.append({"role": "assistant", "content": response})
@@ -239,7 +271,8 @@ def show_admin_main_page():
             cols = st.columns((0.5, 2, 2, 1, 1, 2))
             fields = ["ID", "Full Name", "Phone", "District", "City", "Actions"]
             for col, field_name in zip(cols, fields): col.write(f"**{field_name}**")
-            for pc in pcs:
+            for pc_row in pcs:
+                pc = dict(pc_row)
                 col1, col2, col3, col4, col5, col6 = st.columns((0.5, 2, 2, 1, 1, 2))
                 with col1: st.write(pc['id'])
                 with col2: st.write(pc['full_name'])
@@ -261,21 +294,26 @@ def show_admin_main_page():
         clients = get_all_clients()
         if not clients: st.info("No clients added yet.")
         else:
-            cols = st.columns((0.7, 2, 1, 1.5, 2))
-            fields = ["ID", "ক্লায়েন্টের নাম", "লিঙ্গ", "সুপারভাইজার রেফারেল", "Actions"]
+            # --- MODIFIED THIS SECTION FOR THE NEW COLUMN ---
+            cols = st.columns((0.5, 2, 2, 1, 1.5, 1.5)) # Added a new column width
+            fields = ["ID", "ক্লায়েন্টের নাম", "Assigned PC", "লিঙ্গ", "সুপারভাইজার রেফারেল", "Actions"] # Added new header
             for col, field_name in zip(cols, fields): col.write(f"**{field_name}**")
             st.divider()
-            for client in clients:
-                col1, col2, col3, col4, col5 = st.columns((0.7, 2, 1, 1.5, 2))
+            
+            for client_row in clients:
+                client = dict(client_row)
+                col1, col2, col3, col4, col5, col6 = st.columns((0.5, 2, 2, 1, 1.5, 1.5)) # Now 6 columns
                 with col1: st.write(client['id'])
                 with col2: st.write(client['name'])
-                with col3:
+                # This is the new column being displayed
+                with col3: st.write(client.get('pc_name', 'N/A'))
+                with col4:
                     gender = client['gender'] if 'gender' in client.keys() else 'N/A'
                     st.write(gender)
-                with col4:
+                with col5:
                     referral_status = client['supervisor_referral'] if 'supervisor_referral' in client.keys() else 'No'
                     st.markdown(format_referral_status(referral_status), unsafe_allow_html=True)
-                with col5:
+                with col6:
                     if st.button("View Details", key=f"view_{client['id']}", use_container_width=True):
                         st.session_state.admin_view = 'view_client'
                         st.session_state.view_client_id = client['id']
@@ -310,7 +348,8 @@ def show_admin_main_page():
         if not entries:
             st.info("No knowledge base entries have been added yet.")
         else:
-            for entry in entries:
+            for entry_row in entries:
+                entry = dict(entry_row)
                 with st.expander(f"**{entry['title']}** (Importance: {entry['importance_score']}/10)"):
                     st.markdown(f"**Instructions:**\n> {entry['instruction_text']}")
                     targets = json.loads(entry['target_bots'])

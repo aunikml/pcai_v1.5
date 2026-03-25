@@ -59,31 +59,38 @@ def run_session_workflow():
             st.warning("সেশন শুরু করার জন্য কোনো উপযুক্ত ক্লায়েন্ট নেই।")
         else:
             st.write("একজন ক্লায়েন্ট নির্বাচন করুন:")
-            for client in eligible_clients:
+            for client_row in eligible_clients:
+                client = dict(client_row)
                 with st.container(border=True):
                     session_count = get_completed_supervision_count(client['id'], st.session_state.user_id)
                     st.subheader(client['name'])
-                    st.caption(f"Date of Adding: {client['next_followup_date']}")
+                    # Use .get() for safety in case the key doesn't exist
+                    st.caption(f"Date of Adding: {client.get('next_followup_date', 'N/A')}")
                     sc1, sc2 = st.columns(2)
-                    mood_rating = client['mood_rating_initial'] if 'mood_rating_initial' in client.keys() else "N/A"
-                    srq_score = client['srq_score'] if 'srq_score' in client.keys() else "N/A"
+                    mood_rating = client.get('mood_rating_initial', "N/A")
+                    srq_score = client.get('srq_score', "N/A")
                     sc1.metric("Initial Mood", f"{mood_rating}/10")
                     sc2.metric("Initial SRQ", srq_score)
                     st.write("---")
                     st.write("**AI Supervision Session**")
                     s1_col, s2_col, s3_col, s4_col = st.columns(4)
 
+                    # --- CHANGE START: Modified start_session function ---
                     def start_session(session_number):
                         st.session_state.session_client = dict(client)
                         st.session_state.session_data = {'client_id': client['id'], 'pc_id': st.session_state.user_id, 'session_number': session_number}
                         
+                        # Session 3 has a special intro screen, so we handle it separately.
                         if session_number == 3:
                             st.session_state.conversation_stage = 'session_3_start_prompt'
                             st.session_state.messages = []
                         else:
-                            st.session_state.conversation_stage = 'session_pc_wellbeing_chat'
-                            st.session_state.messages = [{"role": "assistant", "content": "সেশন শুরু করার আগে, অনুগ্রহ করে বলুন আপনি কেমন আছেন? আপনি প্রস্তুত হলে 'start session' বা 'শুরু করুন' টাইপ করুন।"}]
+                            # For all other sessions (1, 2, 4), skip the well-being check
+                            # and go directly to the date selection step.
+                            st.session_state.conversation_stage = f'session_{session_number}_get_date'
+                            st.session_state.messages = []
                         st.rerun()
+                    # --- CHANGE END ---
 
                     with s1_col:
                         if st.button("Session 1", key=f"s1_{client['id']}", disabled=(session_count != 0), use_container_width=True): start_session(1)
@@ -122,6 +129,7 @@ def run_session_workflow():
                 elif session_num == 2:
                     st.session_state.conversation_stage = 'session_2_sessions_taken_text'
                     st.session_state.messages.append({"role": "assistant", "content": "আপনি ক্লায়েন্টের সাথে এ পর্যন্ত কয়টি সেশন করেছেন?"})
+                # Add logic for other sessions if needed, e.g., session 4
                 st.rerun()
     elif stage == 'session_2_mood_rating':
         with st.chat_message("assistant", avatar="🤖"):
@@ -138,7 +146,8 @@ def run_session_workflow():
                 previous_sessions = get_supervision_sessions_for_client(client['id'])
                 previous_mood = client.get('mood_rating_initial')
                 if previous_sessions:
-                    last_completed_session = previous_sessions[-1]
+                    last_completed_session_row = previous_sessions[-1]
+                    last_completed_session = dict(last_completed_session_row)
                     if 'client_current_mood' in last_completed_session.keys() and last_completed_session['client_current_mood'] is not None:
                          previous_mood = last_completed_session['client_current_mood']
                 current_mood = st.session_state.session_data['client_current_mood']
@@ -216,21 +225,13 @@ def run_session_workflow():
     if prompt := st.chat_input("...", disabled=is_chat_disabled):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
-        if stage == 'session_pc_wellbeing_chat':
-            with st.spinner("..."): _, bot_response = assess_emotional_readiness(prompt)
-            st.session_state.messages.append({"role": "assistant", "content": bot_response})
-            st.session_state.conversation_stage = 'session_pc_wellbeing_chat_wait'; st.rerun()
-        elif stage == 'session_pc_wellbeing_chat_wait':
-            if "start" in prompt.lower() or "শুরু" in prompt:
-                if session_num < 3:
-                    st.session_state.conversation_stage = f'session_{session_num}_get_date'
-                else:
-                    st.session_state.conversation_stage = 'session_3_intro'
-                st.session_state.messages.append({"role": "assistant", "content": "চলুন সেশন শুরু করা যাক."})
-            else:
-                st.session_state.messages.append({"role": "assistant", "content": "আপনার কথা শোনার জন্য আমি এখানে আছি। আপনি যখন প্রস্তুত হবেন, তখন 'সেশন শুরু করুন' টাইপ করুন."})
-            st.rerun()
-        elif stage == 'session_1_case_management_text':
+        
+        # --- CHANGE START: Removed the obsolete chat input handlers ---
+        # The 'session_pc_wellbeing_chat' and 'session_pc_wellbeing_chat_wait'
+        # stages are no longer used for supervision, so their handlers are removed.
+        # --- CHANGE END ---
+        
+        if stage == 'session_1_case_management_text':
             st.session_state.session_data['case_management_notes'] = prompt
             st.session_state.conversation_stage = 'session_1_challenges_text'
             st.session_state.messages.append({"role": "assistant", "content": "ধন্যবাদ। সেশনের সময় আপনি কী কী নির্দিষ্ট চ্যালেঞ্জের মুখোমুখি হয়েছেন?"}); st.rerun()
@@ -280,9 +281,10 @@ def run_session_workflow():
             st.session_state.session_data['personal_barriers'] = prompt
             with st.chat_message("assistant"):
                 with st.spinner("AI আপনার উত্তর বিশ্লেষণ করে সুপারভিশন নির্দেশিকা তৈরি করছে..."):
-                    session1_data = get_supervision_sessions_for_client(client['id'])[0]
+                    session1_data_row = get_supervision_sessions_for_client(client['id'])[0]
+                    session1_data = dict(session1_data_row)
                     session2_notes = {k: v for k, v in st.session_state.session_data.items() if k.endswith(('_notes', '_faced', '_points', '_questions', '_barriers', '_taken', '_mood'))}
-                    guidance = provide_supervision_guidance_s2(st.session_state.session_client, dict(session1_data), session2_notes)
+                    guidance = provide_supervision_guidance_s2(st.session_state.session_client, session1_data, session2_notes)
                     st.session_state.session_data['ai_supervision_guidance'] = guidance
                     st.markdown(guidance)
                     st.session_state.messages.append({"role": "assistant", "content": guidance})
@@ -302,7 +304,11 @@ def run_session_workflow():
             with st.chat_message("assistant"):
                 with st.spinner("Analyzing progress..."):
                     previous_sessions = get_supervision_sessions_for_client(client['id'])
-                    previous_mood = previous_sessions[-1]['client_current_mood'] if previous_sessions and 'client_current_mood' in previous_sessions[-1].keys() else client.get('mood_rating_initial')
+                    previous_mood = client.get('mood_rating_initial') # Default
+                    if previous_sessions:
+                        last_session = dict(previous_sessions[-1])
+                        previous_mood = last_session.get('client_current_mood', client.get('mood_rating_initial'))
+                    
                     remark = compare_mood_scores(previous_mood, prompt)
                     st.markdown(remark)
                     st.session_state.messages.append({"role": "assistant", "content": remark})

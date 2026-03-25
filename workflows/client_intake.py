@@ -9,6 +9,22 @@ from gemini_utils import (
 from constants import INITIAL_CLIENT_QUESTIONS, SRQ_QUESTIONS
 
 # ==============================================================================
+# --- NEW HELPER FUNCTION ---
+# ==============================================================================
+
+def convert_bengali_to_english_numerals(text: str) -> str:
+    """Converts a string containing Bengali numerals to English numerals."""
+    if not isinstance(text, str):
+        return str(text) # Ensure it's a string for processing
+    
+    bengali_to_english_map = {
+        '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+        '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+    }
+    translation_table = str.maketrans(bengali_to_english_map)
+    return text.translate(translation_table).strip()
+
+# ==============================================================================
 # --- CLIENT INTAKE WORKFLOW ---
 # ==============================================================================
 
@@ -24,8 +40,6 @@ def run_client_intake_workflow():
         q_index = st.session_state.info_question_index
         question = INITIAL_CLIENT_QUESTIONS[q_index]
         with st.chat_message("assistant", avatar="🤖"):
-            # The prompt is already in the chat history from advance_to_next_question
-            # st.write(question['prompt']) 
             cols = st.columns(len(question['options']))
             for i, option in enumerate(question['options']):
                 if cols[i].button(option, key=f"option_{i}", use_container_width=True):
@@ -101,6 +115,20 @@ def process_and_save_client():
     calling AI models, displaying a summary, and saving to the database.
     """
     with st.spinner("Analyzing responses and creating profile..."):
+        # --- DATA SANITIZATION & VALIDATION (THE FIX) ---
+        try:
+            # Get the age from session state, which could be in Bengali
+            age_str = st.session_state.new_client_data.get('age', '')
+            # Convert any Bengali numerals to English numerals
+            english_age_str = convert_bengali_to_english_numerals(age_str)
+            # Convert the sanitized string to an integer
+            # If the string is empty, it becomes None, which is database-friendly (NULL)
+            st.session_state.new_client_data['age'] = int(english_age_str) if english_age_str else None
+        except (ValueError, TypeError):
+            # If conversion fails (e.g., user entered "abc"), show an error and stop.
+            st.error(f"'{age_str}' একটি সঠিক বয়স নয়। অনুগ্রহ করে শুধুমাত্র সংখ্যা ব্যবহার করুন।")
+            st.stop()
+        
         # --- 1. Calculations ---
         srq_responses = st.session_state.srq_answers
         score_1_20 = sum(srq_responses[:20])

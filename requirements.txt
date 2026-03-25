@@ -6,3 +6,4 @@ pandas
 plotly  # <-- ADD THIS LINE
 python-docx
 pypdf2
+streamlit-cookies-manager
